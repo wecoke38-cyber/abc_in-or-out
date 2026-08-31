@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>경남지역 근태 조회</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --navy:#1b2a3d;
+  --navy-dark:#101b28;
+  --slate:#4a5b6e;
+  --slate-light:#eef1f4;
+  --paper:#f7f8f9;
+  --line:#dfe4e9;
+  --ok:#1f7a4d;
+  --ok-bg:#e6f4ec;
+  --warn:#b6720f;
+  --warn-bg:#fbf0dd;
+  --bad:#b3372c;
+  --bad-bg:#fbeae8;
+  --accent:#2f6f8f;
+  font-size:16px;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--navy-dark);
+  font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Malgun Gothic",sans-serif;
+  line-height:1.5;
+}
+.wrap{max-width:880px;margin:0 auto;padding:28px 18px 80px;}
+header.top{margin-bottom:22px;}
+h1{
+  font-size:1.5rem;
+  margin:0 0 4px;
+  color:var(--navy);
+  letter-spacing:-0.01em;
+}
+.sub{color:var(--slate);font-size:0.92rem;}
+
+/* ---- upload zone ---- */
+.dropzone{
+  border:1.5px dashed #b7c2cd;
+  border-radius:10px;
+  background:#fff;
+  padding:28px 20px;
+  text-align:center;
+  cursor:pointer;
+  transition:border-color .15s, background .15s;
+}
+.dropzone.drag{border-color:var(--accent);background:#eef6fa;}
+.dropzone p{margin:6px 0;color:var(--slate);font-size:0.94rem;}
+.dropzone strong{color:var(--navy);}
+.dropzone input{display:none;}
+.filename{margin-top:10px;font-size:0.85rem;color:var(--accent);}
+
+/* ---- how-to ---- */
+details.howto{margin:16px 0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:2px 16px;}
+details.howto summary{cursor:pointer;padding:12px 0;font-weight:600;color:var(--navy);font-size:0.92rem;}
+details.howto .steps{display:flex;gap:14px;padding:4px 0 16px;flex-wrap:wrap;}
+details.howto .step{flex:1;min-width:140px;font-size:0.85rem;color:var(--slate);}
+details.howto .step b{display:block;color:var(--navy);font-size:0.82rem;margin-bottom:2px;}
+details.howto .faq{font-size:0.85rem;color:var(--slate);border-top:1px solid var(--line);padding-top:12px;margin-top:4px;}
+details.howto .faq p{margin:6px 0;}
+details.howto .faq b{color:var(--navy-dark);}
+
+/* ---- summary ---- */
+.summary{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+  margin:18px 0;
+}
+.stat{
+  background:#fff;border:1px solid var(--line);border-radius:10px;
+  padding:14px 12px;text-align:center;
+}
+.stat .n{font-size:1.4rem;font-weight:700;color:var(--navy);}
+.stat .l{font-size:0.75rem;color:var(--slate);margin-top:2px;}
+.stat.bad .n{color:var(--bad);}
+.stat.warn .n{color:var(--warn);}
+
+/* ---- controls ---- */
+.controls{display:flex;gap:8px;margin:16px 0 10px;flex-wrap:wrap;}
+.controls input[type=text], .controls select{
+  padding:9px 12px;border:1px solid var(--line);border-radius:8px;
+  font-size:0.92rem;background:#fff;color:var(--navy-dark);
+}
+.controls input[type=text]{flex:1;min-width:160px;}
+.controls select{min-width:150px;}
+.btn{
+  padding:9px 14px;border-radius:8px;border:1px solid var(--line);
+  background:#fff;color:var(--navy);font-size:0.88rem;cursor:pointer;
+}
+.btn:hover{background:var(--slate-light);}
+.btn.primary{background:var(--navy);color:#fff;border-color:var(--navy);}
+.btn.primary:hover{background:var(--navy-dark);}
+
+/* ---- cards ---- */
+.empty{
+  text-align:center;color:var(--slate);padding:40px 10px;font-size:0.9rem;
+}
+.card{
+  background:#fff;border:1px solid var(--line);border-left:5px solid #b7c2cd;
+  border-radius:10px;margin-bottom:9px;overflow:hidden;
+}
+.card.ok{border-left-color:var(--ok);}
+.card.warn{border-left-color:var(--warn);}
+.card.bad{border-left-color:var(--bad);}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 16px;cursor:pointer;gap:10px;
+}
+.card-head .who{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.card-head .name{font-weight:700;font-size:1rem;color:var(--navy-dark);}
+.card-head .meta{font-size:0.8rem;color:var(--slate);}
+.card-head .dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;
+  background:#b7c2cd;
+}
+.card.ok .dot{background:var(--ok);}
+.card.warn .dot{background:var(--warn);}
+.card.bad .dot{background:var(--bad);}
+.card-head .nums{display:flex;gap:14px;font-size:0.82rem;color:var(--slate);}
+.card-head .nums b{color:var(--navy-dark);}
+.card-body{
+  display:none;padding:0 16px 16px;border-top:1px solid var(--line);
+}
+.card.open .card-body{display:block;}
+.card.open .card-head{border-bottom:1px solid var(--line);}
+.detail-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;
+}
+.detail-box{background:var(--slate-light);border-radius:8px;padding:10px 12px;}
+.detail-box .t{font-size:0.78rem;color:var(--slate);margin-bottom:6px;font-weight:600;}
+.detail-box .row{display:flex;justify-content:space-between;font-size:0.86rem;padding:2px 0;}
+.detail-box .row span:last-child{font-weight:600;color:var(--navy-dark);}
+.manual-input{margin-top:10px;font-size:0.82rem;color:var(--slate);}
+.manual-input input{
+  width:70px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;
+  font-size:0.82rem;margin-left:6px;
+}
+
+/* ---- batch input ---- */
+.batch{margin-top:26px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;}
+.batch summary{cursor:pointer;font-weight:600;color:var(--navy);font-size:0.92rem;}
+.batch p{font-size:0.83rem;color:var(--slate);margin:10px 0;}
+.batch textarea{
+  width:100%;min-height:90px;border:1px solid var(--line);border-radius:8px;
+  padding:10px;font-family:monospace;font-size:0.85rem;resize:vertical;
+}
+.batch .actions{display:flex;gap:8px;margin-top:10px;}
+
+footer.note{margin-top:30px;font-size:0.78rem;color:#8a96a3;text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>📋 경남지역 근태 조회</h1>
+    <div class="sub" id="periodLabel">엑셀 파일을 올리면 대상 기간과 인원이 표시됩니다</div>
+  </header>
+
+  <details class="howto">
+    <summary>❔ 처음이신가요? 이렇게 사용하세요</summary>
+    <div class="steps">
+      <div class="step"><b>1. 파일 올리기</b>「일별 근태 현황」엑셀을 선택하거나 끌어다 놓으세요.</div>
+      <div class="step"><b>2. 자동 계산</b>파일 내용은 이 브라우저 안에서만 계산되고, 어디로도 전송되지 않아요.</div>
+      <div class="step"><b>3. 이름 검색</b>검색창에 이름·사번을 입력하고 카드를 눌러 펼치면 상세 내역이 나와요.</div>
+    </div>
+    <div class="faq">
+      <p><b>색상이 뭘 뜻하나요?</b> 🔴 빨강은 필수사용일수보다 연차를 더 썼거나, 대체휴무 사용이 발생 건수보다 많은(잔여가 음수인) 경우로 확인이 필요해요. 🟠 주황은 아직 다 쓰지 않은 필수 연차가 남아있다는 뜻이에요. 🟢 초록은 정상이에요.</p>
+      <p><b>필수사용일수 칸에 "–"만 보여요.</b> 2025-01-01 이후 입사자는 필수사용일수가 원자료에 없어서, 카드 안 입력칸이나 아래 "일괄 입력"에서 직접 숫자를 넣어야 계산돼요.</p>
+      <p><b>다음 달 새 파일은요?</b> 아래 "다른 파일 업로드" 버튼으로 새 엑셀을 다시 올리면 돼요.</p>
+      <p><b>산출 기준</b><br>
+      · 연차 사용일수 = 연차 1일 + 반차 0.5일 + 반반차 0.25일 (근무상태 필드 기준)<br>
+      · 연차 필수사용일수 = 입사일 2024-12-31 이전 12일 고정 · 2025-01-01 이후는 직접 입력<br>
+      · 대체휴무 발생 = 「공휴일휴무」 건수(발생과 동시에 그날 바로 사용) + 「근무/타매장 지원근무」 중 마감수정사유·비고에 그 행의 날짜보다 미래인 날짜(YYYY-MM-DD)가 적힌 건수(공휴일 출근 후 대체일을 나중에 쓰기로 한 경우)<br>
+      · 대체휴무 사용 = 「공휴일휴무」 건수 + 「휴일의 대체」 상태 건수<br>
+      · 마감수정사유·비고에 "이월"이 포함되었거나, 그 해보다 이전 연도(예: 2025, 25년)가 언급된 행은 연차·대체휴무 사용 집계에서 제외(전년도 이월분으로 판단)<br>
+      · 소속 매장은 대상기간 내 가장 최근 기록 기준<br>
+      · <b>확인 필요로 표시되는 경우:</b> 위 규칙은 실제 데이터 88명 기준으로 검증해 대부분 정확히 맞아떨어지지만, 자유텍스트 입력 특성상 100% 완벽하지는 않아요. 대체휴무 잔여가 음수로 나오면 이 앱이 그 행을 못 찾은 것일 수 있으니, 카드를 펼쳐 해당 직원의 비고란을 직접 확인해주세요.</p>
+    </div>
+  </details>
+
+  <div class="dropzone" id="dropzone">
+    <p><strong>일별 근태 현황 엑셀을 올려주세요</strong></p>
+    <p>클릭해서 선택하거나, 파일을 여기로 끌어다 놓으세요</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <div class="filename" id="filename"></div>
+  </div>
+
+  <div id="appArea" style="display:none;">
+    <div style="text-align:right;margin-top:8px;">
+      <button class="btn" id="reuploadBtn">다른 파일 업로드</button>
+    </div>
+
+    <div class="summary">
+      <div class="stat"><div class="n" id="statTotal">0</div><div class="l">대상 인원</div></div>
+      <div class="stat warn"><div class="n" id="statWarn">0</div><div class="l">필수연차 미사용 인원</div></div>
+      <div class="stat"><div class="n" id="statManual">0</div><div class="l">필수사용일수 입력 필요</div></div>
+      <div class="stat bad"><div class="n" id="statBad">0</div><div class="l">확인 필요(초과·이상)</div></div>
+    </div>
+
+    <div class="controls">
+      <input type="text" id="searchInput" placeholder="이름 또는 사번 검색">
+      <select id="storeFilter"><option value="">전체 매장</option></select>
+    </div>
+
+    <div id="cardList"></div>
+
+    <details class="batch">
+      <summary>🧮 연차 필수사용일수 일괄 입력</summary>
+      <p>2025-01-01 이후 입사자는 필수사용일수가 원자료에 없어 자동 계산되지 않아요. 한 줄에 <b>사번,일수</b> 형식으로 입력하고 적용을 누르면 바로 반영돼요. (예: 2501041,11)<br>
+      입력값은 <b>이 브라우저에만</b> 저장돼요 — 다른 사람 화면이나 다른 매장에는 영향을 주지 않아요.</p>
+      <textarea id="batchInput" placeholder="2501041,11&#10;2508195,9"></textarea>
+      <div class="actions">
+        <button class="btn primary" id="applyBatch">적용</button>
+        <button class="btn" id="resetBatch">이 브라우저의 입력값 전체 초기화</button>
+      </div>
+    </details>
+
+    <footer class="note">이 페이지는 검색엔진에 노출되지 않도록 설정되어 있습니다. 모든 계산은 브라우저 안에서만 이뤄지며 파일이 서버로 전송되지 않습니다.</footer>
+  </div>
+</div>
+
+<script>
+const REQUIRED_DAYS_FIXED = 12;
+const CUTOFF_DATE = new Date(2024,11,31); // 2024-12-31
+const STORAGE_KEY = 'gn_attendance_manual_required_days_v1';
+
+let rawRows = [];
+let employees = [];
+
+function loadManualDays(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+  catch(e){ return {}; }
+}
+function saveManualDays(obj){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+}
+
+function excelDateToJS(v){
+  if(v instanceof Date) return v;
+  if(typeof v === 'number'){
+    // Excel serial date (1900 system)
+    const epoch = new Date(Date.UTC(1899,11,30));
+    return new Date(epoch.getTime() + v*86400000);
+  }
+  if(typeof v === 'string' && v.trim()){
+    const d = new Date(v);
+    if(!isNaN(d)) return d;
+  }
+  return null;
+}
+
+function fmtDate(d){
+  if(!d) return '';
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function findHeaderRowIndex(matrix){
+  for(let i=0;i<matrix.length;i++){
+    const row = matrix[i];
+    if(!row) continue;
+    if(row[0]==='NO' && row[1]==='일자') return i;
+  }
+  return -1;
+}
+
+function fixSheetRange(ws){
+  // Some system-exported workbooks declare a wrong (truncated) !ref dimension,
+  // which makes sheet_to_json silently drop real data rows. Recompute the
+  // true extent from actual cell addresses before parsing.
+  let maxRow=0, maxCol=0, minRow=0, minCol=0, found=false;
+  Object.keys(ws).forEach(k=>{
+    if(k[0]==='!') return;
+    const addr = XLSX.utils.decode_cell(k);
+    if(!found){ minRow=addr.r; minCol=addr.c; found=true; }
+    if(addr.r>maxRow) maxRow=addr.r;
+    if(addr.c>maxCol) maxCol=addr.c;
+    if(addr.r<minRow) minRow=addr.r;
+    if(addr.c<minCol) minCol=addr.c;
+  });
+  if(found){
+    ws['!ref'] = XLSX.utils.encode_range({s:{r:minRow,c:minCol}, e:{r:maxRow,c:maxCol}});
+  }
+}
+
+function parseWorkbook(wb){
+  const sheetName = wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  fixSheetRange(ws);
+  const matrix = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+  const headerIdx = findHeaderRowIndex(matrix);
+  if(headerIdx === -1){ alert('엑셀 형식을 인식하지 못했습니다. 「일별 근태 현황」 원본 파일인지 확인해주세요.'); return null; }
+  const headers = matrix[headerIdx];
+  const col = {};
+  headers.forEach((h,i)=>{ if(h!=null) col[String(h).replace(/\s/g,'')] = i; });
+
+  const need = ['일자','지역','점','직책','사번','성명','입사일자','근태구분','근무상태','지원매장','마감수정사유','비고'];
+  for(const n of need){ if(!(n in col)){ alert('필수 컬럼을 찾을 수 없습니다: '+n); return null; } }
+
+  const rows = [];
+  for(let i=headerIdx+1;i<matrix.length;i++){
+    const r = matrix[i];
+    if(!r || r[col['사번']]==null) continue;
+    rows.push({
+      date: excelDateToJS(r[col['일자']]),
+      store: r[col['점']],
+      role: r[col['직책']],
+      empId: String(r[col['사번']]).trim(),
+      name: r[col['성명']],
+      hireDate: excelDateToJS(r[col['입사일자']]),
+      workType: r[col['근태구분']],
+      status: r[col['근무상태']],
+      supportStore: r[col['지원매장']],
+      reason: r[col['마감수정사유']] ? String(r[col['마감수정사유']]) : '',
+      note: r[col['비고']] ? String(r[col['비고']]) : '',
+    });
+  }
+  return rows;
+}
+
+const DATE_RE = /(\d{4})-(\d{2})-(\d{2})/;
+const YEAR4_RE = /(20\d{2})/g;
+const YEAR2_RE = /(\d{2})\s*년/g;
+
+function hasCarryMarker(row, curYear){
+  const combined = (row.reason||'') + ' ' + (row.note||'');
+  if(combined.includes('이월')) return true;
+  let m;
+  YEAR4_RE.lastIndex = 0;
+  while((m = YEAR4_RE.exec(combined))){ if(parseInt(m[1],10) < curYear) return true; }
+  YEAR2_RE.lastIndex = 0;
+  while((m = YEAR2_RE.exec(combined))){ if(2000+parseInt(m[1],10) < curYear) return true; }
+  return false;
+}
+
+// Returns a Date if `text` contains a YYYY-MM-DD that is strictly after rowDate, else null.
+// (Marks a "발생" event: worked on a holiday, substitute day scheduled for future use.)
+function extractFutureDate(text, rowDate){
+  if(!text || !rowDate) return null;
+  const m = DATE_RE.exec(text);
+  if(!m) return null;
+  const d = new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+  return d.getTime() > rowDate.getTime() ? d : null;
+}
+
+function buildEmployees(rows){
+  const manual = loadManualDays();
+  const byId = {};
+  rows.forEach(r=>{
+    if(!byId[r.empId]) byId[r.empId] = [];
+    byId[r.empId].push(r);
+  });
+
+  const stores = new Set();
+  const list = [];
+
+  Object.keys(byId).forEach(empId=>{
+    const rs = byId[empId].slice().sort((a,b)=> (a.date? a.date.getTime():0) - (b.date? b.date.getTime():0));
+    const last = rs[rs.length-1];
+    const name = last.name;
+    const hireDate = rs.find(r=>r.hireDate)?.hireDate || null;
+    const store = last.store;
+    if(store) stores.add(store);
+
+    let annualUsed = 0, halfDay=0, quarterDay=0;
+    let holidayGenerated=0, holidayUsed=0;
+
+    rs.forEach(r=>{
+      const curYear = r.date ? r.date.getFullYear() : new Date().getFullYear();
+      const carry = hasCarryMarker(r, curYear);
+      if(r.status === '연차' && !carry) annualUsed += 1;
+      else if(r.status === '반차' && !carry) { annualUsed += 0.5; halfDay++; }
+      else if(r.status === '반반차' && !carry) { annualUsed += 0.25; quarterDay++; }
+
+      // 공휴일휴무: legal holiday granted and taken same day (generates + immediately uses one credit)
+      if(r.status === '공휴일휴무'){ holidayGenerated += 1; holidayUsed += 1; }
+
+      // Worked on a holiday, substitute day banked for later use
+      if(r.status === '근무' || r.status === '타매장 지원근무'){
+        if(extractFutureDate(r.note, r.date) || extractFutureDate(r.reason, r.date)) holidayGenerated += 1;
+      }
+
+      // Actual substitute-day-off usage (excluding rows referencing a prior year's credit)
+      if(r.status === '휴일의 대체' && !carry) holidayUsed += 1;
+    });
+
+    let required = null;
+    let requiredSource = '';
+    if(hireDate && hireDate <= CUTOFF_DATE){
+      required = REQUIRED_DAYS_FIXED;
+      requiredSource = 'fixed';
+    } else if(manual[empId] != null){
+      required = manual[empId];
+      requiredSource = 'manual';
+    } else {
+      requiredSource = 'needed';
+    }
+
+    const holidayRemain = holidayGenerated - holidayUsed;
+
+    let status = 'ok'; // ok / warn / bad
+    if(required != null && annualUsed < required) status = 'warn';
+    if(required != null && annualUsed > required) status = 'bad';
+    if(holidayRemain < 0) status = 'bad';
+
+    list.push({
+      empId, name, store, hireDate,
+      annualUsed, halfDay, quarterDay,
+      required, requiredSource,
+      holidayGenerated, holidayUsed, holidayRemain,
+      status,
+      rowCount: rs.length,
+    });
+  });
+
+  list.sort((a,b)=> (a.store||'').localeCompare(b.store||'') || (a.name||'').localeCompare(b.name||''));
+  return {list, stores:[...stores].sort()};
+}
+
+let currentData = {list:[], stores:[]};
+
+function render(){
+  const q = document.getElementById('searchInput').value.trim();
+  const storeF = document.getElementById('storeFilter').value;
+  const listEl = document.getElementById('cardList');
+  listEl.innerHTML = '';
+
+  const filtered = currentData.list.filter(e=>{
+    if(storeF && e.store !== storeF) return false;
+    if(q && !(String(e.name).includes(q) || String(e.empId).includes(q))) return false;
+    return true;
+  });
+
+  if(filtered.length === 0){
+    listEl.innerHTML = '<div class="empty">검색 조건에 맞는 인원이 없습니다.</div>';
+  } else {
+    filtered.forEach(e=>{
+      const card = document.createElement('div');
+      card.className = 'card ' + e.status;
+      const reqLabel = e.required==null ? '–' : e.required;
+      card.innerHTML = `
+        <div class="card-head">
+          <div class="who">
+            <span class="dot"></span>
+            <span class="name">${e.name}</span>
+            <span class="meta">${e.empId} · ${e.store||'-'}</span>
+          </div>
+          <div class="nums">
+            <span>연차 <b>${e.annualUsed}</b>/${reqLabel}일</span>
+            <span>대체휴무 잔여 <b>${e.holidayRemain}</b></span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="detail-grid">
+            <div class="detail-box">
+              <div class="t">연차</div>
+              <div class="row"><span>사용일수</span><span>${e.annualUsed}일</span></div>
+              <div class="row"><span>필수사용일수</span><span>${reqLabel}${e.required!=null?'일':''}</span></div>
+              <div class="row"><span>반차/반반차 횟수</span><span>${e.halfDay} / ${e.quarterDay}</span></div>
+              ${e.requiredSource==='needed' ? `
+                <div class="manual-input">
+                  이 직원(2025-01-01 이후 입사)은 필수사용일수를 직접 입력해주세요:
+                  <input type="number" step="1" min="0" class="reqInput" data-emp="${e.empId}" placeholder="일수">
+                </div>` : ''}
+            </div>
+            <div class="detail-box">
+              <div class="t">대체휴무(공휴일 포함)</div>
+              <div class="row"><span>발생</span><span>${e.holidayGenerated}</span></div>
+              <div class="row"><span>사용</span><span>${e.holidayUsed}</span></div>
+              <div class="row"><span>잔여</span><span>${e.holidayRemain}</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+      card.querySelector('.card-head').addEventListener('click', ()=> card.classList.toggle('open'));
+      listEl.appendChild(card);
+    });
+    // wire manual inputs
+    listEl.querySelectorAll('.reqInput').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const empId = inp.dataset.emp;
+        const val = parseInt(inp.value,10);
+        if(!isNaN(val)){
+          const manual = loadManualDays();
+          manual[empId] = val;
+          saveManualDays(manual);
+          currentData = buildEmployees(rawRows);
+          updateStats();
+          render();
+        }
+      });
+      inp.addEventListener('click', ev=>ev.stopPropagation());
+    });
+  }
+  updateStats(filtered.length ? null : null);
+}
+
+function updateStats(){
+  const total = currentData.list.length;
+  const warn = currentData.list.filter(e=>e.status==='warn').length;
+  const bad = currentData.list.filter(e=>e.status==='bad').length;
+  const manualNeeded = currentData.list.filter(e=>e.requiredSource==='needed').length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statWarn').textContent = warn;
+  document.getElementById('statBad').textContent = bad;
+  document.getElementById('statManual').textContent = manualNeeded;
+}
+
+function populateStoreFilter(stores){
+  const sel = document.getElementById('storeFilter');
+  sel.innerHTML = '<option value="">전체 매장</option>' + stores.map(s=>`<option value="${s}">${s}</option>`).join('');
+}
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const rows = parseWorkbook(wb);
+      if(!rows) return;
+      rawRows = rows;
+      currentData = buildEmployees(rawRows);
+      populateStoreFilter(currentData.stores);
+
+      const dates = rows.map(r=>r.date).filter(Boolean);
+      const minD = dates.length? new Date(Math.min(...dates)):null;
+      const maxD = dates.length? new Date(Math.max(...dates)):null;
+      document.getElementById('periodLabel').textContent =
+        `기준기간 ${fmtDate(minD)} ~ ${fmtDate(maxD)} · 대상 ${currentData.list.length}명 · 매장 ${currentData.stores.length}곳`;
+
+      document.getElementById('filename').textContent = '📎 ' + file.name;
+      document.getElementById('dropzone').style.display = 'none';
+      document.getElementById('appArea').style.display = 'block';
+      render();
+    }catch(err){
+      console.error(err);
+      alert('파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ---- events ----
+const dz = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dz.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', ()=>{ if(fileInput.files[0]) handleFile(fileInput.files[0]); });
+['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.remove('drag');}));
+dz.addEventListener('drop', e=>{
+  const f = e.dataTransfer.files[0];
+  if(f) handleFile(f);
+});
+
+document.getElementById('reuploadBtn').addEventListener('click', ()=>{
+  document.getElementById('appArea').style.display='none';
+  document.getElementById('dropzone').style.display='block';
+  document.getElementById('filename').textContent='';
+  fileInput.value='';
+  document.getElementById('periodLabel').textContent = '엑셀 파일을 올리면 대상 기간과 인원이 표시됩니다';
+});
+
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('storeFilter').addEventListener('change', render);
+
+document.getElementById('applyBatch').addEventListener('click', ()=>{
+  const text = document.getElementById('batchInput').value;
+  const manual = loadManualDays();
+  let count = 0;
+  text.split('\n').forEach(line=>{
+    const parts = line.split(',');
+    if(parts.length===2){
+      const id = parts[0].trim();
+      const val = parseInt(parts[1].trim(),10);
+      if(id && !isNaN(val)){ manual[id] = val; count++; }
+    }
+  });
+  saveManualDays(manual);
+  if(rawRows.length){
+    currentData = buildEmployees(rawRows);
+    updateStats();
+    render();
+  }
+  alert(count + '건 적용되었습니다.');
+  document.getElementById('batchInput').value='';
+});
+
+document.getElementById('resetBatch').addEventListener('click', ()=>{
+  if(confirm('이 브라우저에 저장된 필수사용일수 입력값을 모두 초기화할까요?')){
+    localStorage.removeItem(STORAGE_KEY);
+    if(rawRows.length){
+      currentData = buildEmployees(rawRows);
+      updateStats();
+      render();
+    }
+  }
+});
+</script>
+</body>
+</html>
