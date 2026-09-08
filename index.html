@@ -144,6 +144,18 @@ details.howto .faq b{color:var(--navy-dark);}
   width:70px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;
   font-size:0.82rem;margin-left:6px;
 }
+.date-details{margin-top:10px;}
+.date-details summary{cursor:pointer;font-size:0.8rem;color:var(--accent);font-weight:600;padding:4px 0;list-style:none;}
+.date-details summary::-webkit-details-marker{display:none;}
+.date-details summary::before{content:"+ ";}
+.date-details[open] summary::before{content:"– ";}
+.date-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+.date-chip{font-size:0.76rem;border:1px solid var(--line);border-radius:6px;padding:3px 7px;background:#fff;color:var(--navy-dark);}
+.date-chip .tag{font-weight:700;font-size:0.66rem;padding:1px 5px;border-radius:4px;margin-right:4px;}
+.date-chip .tag.hol{background:var(--warn-bg);color:var(--warn);}
+.date-chip .tag.sub{background:var(--bad-bg);color:var(--bad);}
+.date-chip .tag.ann{background:#e8effa;color:var(--accent);}
+.date-empty{font-size:0.78rem;color:var(--slate);margin-top:6px;}
 
 /* ---- batch input ---- */
 .batch{margin-top:26px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;}
@@ -231,6 +243,7 @@ footer.note{margin-top:30px;font-size:0.78rem;color:#8a96a3;text-align:center;}
 
 <script>
 const REQUIRED_DAYS_FIXED = 12;
+const EXCLUDED_EMP_IDS = new Set(['1408105']); // 최우석 지역장 — 검색/매장/직책 필터 어디에도 노출되지 않도록 원본 파싱 단계에서 완전히 제외
 const CUTOFF_DATE = new Date(2024,11,31); // 2024-12-31
 const STORAGE_KEY = 'gn_attendance_manual_required_days_v1';
 
@@ -311,6 +324,7 @@ function parseWorkbook(wb){
   for(let i=headerIdx+1;i<matrix.length;i++){
     const r = matrix[i];
     if(!r || r[col['사번']]==null) continue;
+    if(EXCLUDED_EMP_IDS.has(String(r[col['사번']]).trim())) continue;
     rows.push({
       date: excelDateToJS(r[col['일자']]),
       store: r[col['점']],
@@ -374,24 +388,30 @@ function buildEmployees(rows){
 
     let annualUsed = 0, halfDay=0, quarterDay=0;
     let holidayGenerated=0, holidayUsed=0;
+    const annList=[], holGenList=[], holUseList=[];
 
     rs.forEach(r=>{
       const curYear = r.date ? r.date.getFullYear() : new Date().getFullYear();
       const carry = hasCarryMarker(r, curYear);
-      if(r.status === '연차' && !carry) annualUsed += 1;
-      else if(r.status === '반차' && !carry) { annualUsed += 0.5; halfDay++; }
-      else if(r.status === '반반차' && !carry) { annualUsed += 0.25; quarterDay++; }
+      if(r.status === '연차' && !carry) { annualUsed += 1; annList.push({date:r.date, label:'연차'}); }
+      else if(r.status === '반차' && !carry) { annualUsed += 0.5; halfDay++; annList.push({date:r.date, label:'반차'}); }
+      else if(r.status === '반반차' && !carry) { annualUsed += 0.25; quarterDay++; annList.push({date:r.date, label:'반반차'}); }
 
       // 공휴일휴무: legal holiday granted and taken same day (generates + immediately uses one credit)
-      if(r.status === '공휴일휴무'){ holidayGenerated += 1; holidayUsed += 1; }
+      if(r.status === '공휴일휴무'){
+        holidayGenerated += 1; holidayUsed += 1;
+        holGenList.push({date:r.date, label:'공휴일'});
+        holUseList.push({date:r.date, label:'공휴일'});
+      }
 
       // Worked on a holiday, substitute day banked for later use
       if(r.status === '근무' || r.status === '타매장 지원근무'){
-        if(extractFutureDate(r.note, r.date) || extractFutureDate(r.reason, r.date)) holidayGenerated += 1;
+        const fut = extractFutureDate(r.note, r.date) || extractFutureDate(r.reason, r.date);
+        if(fut){ holidayGenerated += 1; holGenList.push({date:r.date, label:'대체', extra:'사용예정 '+fmtDate(fut)}); }
       }
 
       // Actual substitute-day-off usage (excluding rows referencing a prior year's credit)
-      if(r.status === '휴일의 대체' && !carry) holidayUsed += 1;
+      if(r.status === '휴일의 대체' && !carry){ holidayUsed += 1; holUseList.push({date:r.date, label:'대체'}); }
     });
 
     let required = null;
@@ -413,6 +433,7 @@ function buildEmployees(rows){
     if(required != null && annualUsed > required) status = 'bad';
     if(holidayRemain < 0) status = 'bad';
 
+    const byDate = (a,b)=> (a.date?a.date.getTime():0) - (b.date?b.date.getTime():0);
     list.push({
       empId, name, store, hireDate,
       annualUsed, halfDay, quarterDay,
@@ -420,6 +441,9 @@ function buildEmployees(rows){
       holidayGenerated, holidayUsed, holidayRemain,
       status,
       rowCount: rs.length,
+      annList: annList.slice().sort(byDate),
+      holGenList: holGenList.slice().sort(byDate),
+      holUseList: holUseList.slice().sort(byDate),
     });
   });
 
@@ -428,6 +452,14 @@ function buildEmployees(rows){
 }
 
 let currentData = {list:[], stores:[]};
+
+function dateChips(arr){
+  if(!arr || !arr.length) return '<div class="date-empty">해당 내역 없음</div>';
+  return '<div class="date-chips">' + arr.map(x=>{
+    const cls = x.label==='공휴일' ? 'hol' : x.label==='대체' ? 'sub' : 'ann';
+    return `<span class="date-chip"><span class="tag ${cls}">${x.label}</span>${fmtDate(x.date)}${x.extra ? ' · '+x.extra : ''}</span>`;
+  }).join('') + '</div>';
+}
 
 function render(){
   const q = document.getElementById('searchInput').value.trim();
@@ -472,12 +504,15 @@ function render(){
                   이 직원(2025-01-01 이후 입사)은 필수사용일수를 직접 입력해주세요:
                   <input type="number" step="1" min="0" class="reqInput" data-emp="${e.empId}" placeholder="일수">
                 </div>` : ''}
+              <details class="date-details"><summary>연차 사용일 보기 (${e.annList.length}건)</summary>${dateChips(e.annList)}</details>
             </div>
             <div class="detail-box">
               <div class="t">대체휴무(공휴일 포함)</div>
               <div class="row"><span>발생</span><span>${e.holidayGenerated}</span></div>
               <div class="row"><span>사용</span><span>${e.holidayUsed}</span></div>
               <div class="row"><span>잔여</span><span>${e.holidayRemain}</span></div>
+              <details class="date-details" open><summary>사용 날짜 보기 (${e.holUseList.length}건)</summary>${dateChips(e.holUseList)}</details>
+              <details class="date-details"><summary>발생 날짜 보기 (${e.holGenList.length}건)</summary>${dateChips(e.holGenList)}</details>
             </div>
           </div>
         </div>
