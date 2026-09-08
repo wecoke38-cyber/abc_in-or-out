@@ -100,6 +100,24 @@ details.howto .faq b{color:var(--navy-dark);}
 .btn.primary{background:var(--navy);color:#fff;border-color:var(--navy);}
 .btn.primary:hover{background:var(--navy-dark);}
 
+/* ---- progress panel ---- */
+.progress-panel{
+  background:#fff;border:1px solid var(--line);border-radius:10px;
+  padding:14px 16px 6px;margin-bottom:16px;
+}
+.progress-panel .pp-title{font-size:0.86rem;font-weight:700;color:var(--navy);margin-bottom:12px;}
+.progress-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.pc-label{font-size:0.8rem;color:var(--slate);font-weight:600;margin-bottom:6px;}
+.pc-bar{height:10px;border-radius:6px;background:var(--slate-light);overflow:hidden;position:relative;}
+.pc-fill{height:100%;border-radius:6px;transition:width .25s;}
+.pc-fill.ann{background:var(--accent);}
+.pc-fill.hol{background:var(--ok);}
+.pc-fill.over{background:var(--bad);}
+.pc-nums{font-size:0.8rem;color:var(--slate);margin:7px 0 12px;}
+.pc-nums b{font-size:1rem;color:var(--navy-dark);}
+.pc-empty{font-size:0.8rem;color:var(--slate);margin:7px 0 12px;}
+@media (max-width:520px){ .progress-grid{grid-template-columns:1fr;} }
+
 /* ---- cards ---- */
 .empty{
   text-align:center;color:var(--slate);padding:40px 10px;font-size:0.9rem;
@@ -156,6 +174,8 @@ details.howto .faq b{color:var(--navy-dark);}
 .date-chip .tag.sub{background:var(--bad-bg);color:var(--bad);}
 .date-chip .tag.ann{background:#e8effa;color:var(--accent);}
 .date-empty{font-size:0.78rem;color:var(--slate);margin-top:6px;}
+.date-chip.used{background:var(--slate-light);opacity:.7;}
+.date-chip.used .tag{opacity:.75;}
 
 /* ---- batch input ---- */
 .batch{margin-top:26px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;}
@@ -192,7 +212,7 @@ footer.note{margin-top:30px;font-size:0.78rem;color:#8a96a3;text-align:center;}
       <p><b>산출 기준</b><br>
       · 연차 사용일수 = 연차 1일 + 반차 0.5일 + 반반차 0.25일 (근무상태 필드 기준)<br>
       · 연차 필수사용일수 = 입사일 2024-12-31 이전 12일 고정 · 2025-01-01 이후는 직접 입력<br>
-      · 대체휴무 발생 = 「공휴일휴무」 건수(발생과 동시에 그날 바로 사용) + 「근무/타매장 지원근무」 중 마감수정사유·비고에 그 행의 날짜보다 미래인 날짜(YYYY-MM-DD)가 적힌 건수(공휴일 출근 후 대체일을 나중에 쓰기로 한 경우)<br>
+      · 대체휴무 발생 = 「공휴일휴무」 건수(발생과 동시에 그날 바로 사용) + 원자료에서 확인된 공휴일 날짜에 실제로 「근무」 또는 「타매장 지원근무」를 한 건수 (비고·마감수정사유 텍스트는 참조하지 않음)<br>
       · 대체휴무 사용 = 「공휴일휴무」 건수 + 「휴일의 대체」 상태 건수<br>
       · 마감수정사유·비고에 "이월"이 포함되었거나, 그 해보다 이전 연도(예: 2025, 25년)가 언급된 행은 연차·대체휴무 사용 집계에서 제외(전년도 이월분으로 판단)<br>
       · 소속 매장은 대상기간 내 가장 최근 기록 기준<br>
@@ -222,7 +242,10 @@ footer.note{margin-top:30px;font-size:0.78rem;color:#8a96a3;text-align:center;}
     <div class="controls">
       <input type="text" id="searchInput" placeholder="이름 또는 사번 검색">
       <select id="storeFilter"><option value="">전체 매장</option></select>
+      <select id="roleFilter"><option value="">전체 직책</option></select>
     </div>
+
+    <div class="progress-panel" id="progressPanel"></div>
 
     <div id="cardList"></div>
 
@@ -342,7 +365,6 @@ function parseWorkbook(wb){
   return rows;
 }
 
-const DATE_RE = /(\d{4})-(\d{2})-(\d{2})/;
 const YEAR4_RE = /(20\d{2})/g;
 const YEAR2_RE = /(\d{2})\s*년/g;
 
@@ -357,16 +379,6 @@ function hasCarryMarker(row, curYear){
   return false;
 }
 
-// Returns a Date if `text` contains a YYYY-MM-DD that is strictly after rowDate, else null.
-// (Marks a "발생" event: worked on a holiday, substitute day scheduled for future use.)
-function extractFutureDate(text, rowDate){
-  if(!text || !rowDate) return null;
-  const m = DATE_RE.exec(text);
-  if(!m) return null;
-  const d = new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
-  return d.getTime() > rowDate.getTime() ? d : null;
-}
-
 function buildEmployees(rows){
   const manual = loadManualDays();
   const byId = {};
@@ -375,7 +387,13 @@ function buildEmployees(rows){
     byId[r.empId].push(r);
   });
 
+  // 공휴일 목록은 비고/마감수정사유 텍스트를 읽지 않고, 실제 근무상태가 「공휴일휴무」인
+  // 날짜만 전 직원 데이터에서 모아 자동으로 만든다. (경남지역 전체 공통 달력)
+  const holidaySet = new Set();
+  rows.forEach(r=>{ if(r.status === '공휴일휴무' && r.date) holidaySet.add(fmtDate(r.date)); });
+
   const stores = new Set();
+  const roles = new Set();
   const list = [];
 
   Object.keys(byId).forEach(empId=>{
@@ -384,7 +402,9 @@ function buildEmployees(rows){
     const name = last.name;
     const hireDate = rs.find(r=>r.hireDate)?.hireDate || null;
     const store = last.store;
+    const role = last.role;
     if(store) stores.add(store);
+    if(role) roles.add(role);
 
     let annualUsed = 0, halfDay=0, quarterDay=0;
     let holidayGenerated=0, holidayUsed=0;
@@ -400,19 +420,34 @@ function buildEmployees(rows){
       // 공휴일휴무: legal holiday granted and taken same day (generates + immediately uses one credit)
       if(r.status === '공휴일휴무'){
         holidayGenerated += 1; holidayUsed += 1;
-        holGenList.push({date:r.date, label:'공휴일'});
+        holGenList.push({date:r.date, label:'공휴일', used:true});
         holUseList.push({date:r.date, label:'공휴일'});
       }
 
-      // Worked on a holiday, substitute day banked for later use
-      if(r.status === '근무' || r.status === '타매장 지원근무'){
-        const fut = extractFutureDate(r.note, r.date) || extractFutureDate(r.reason, r.date);
-        if(fut){ holidayGenerated += 1; holGenList.push({date:r.date, label:'대체', extra:'사용예정 '+fmtDate(fut)}); }
+      // 공휴일(holidaySet에 있는 실제 날짜)에 근무/타매장 지원근무를 했으면 대체휴무 1건 발생.
+      // 비고·마감수정사유 텍스트는 더 이상 참조하지 않는다.
+      if((r.status === '근무' || r.status === '타매장 지원근무') && r.date && holidaySet.has(fmtDate(r.date))){
+        holidayGenerated += 1;
+        holGenList.push({date:r.date, label:'대체'});
       }
 
       // Actual substitute-day-off usage (excluding rows referencing a prior year's credit)
-      if(r.status === '휴일의 대체' && !carry){ holidayUsed += 1; holUseList.push({date:r.date, label:'대체'}); }
+      if(r.status === '휴일의 대체' && !carry){
+        holidayUsed += 1;
+        holUseList.push({date:r.date, label:'대체'});
+      }
     });
+
+    // 「대체」 발생·사용 건을 발생일 순서대로 1:1 짝지어(선입선출), 서로의 날짜를 표시하고
+    // 이미 사용된 발생 건은 발생 목록에서 음영 처리할 수 있게 한다. (비고 텍스트는 참조하지 않음)
+    const subGen = holGenList.filter(x => x.label === '대체');
+    const subUse = holUseList.filter(x => x.label === '대체');
+    const pairCount = Math.min(subGen.length, subUse.length);
+    for(let i=0;i<pairCount;i++){
+      subGen[i].used = true;
+      subGen[i].extra = '사용일 ' + fmtDate(subUse[i].date);
+      subUse[i].extra = '발생일 ' + fmtDate(subGen[i].date);
+    }
 
     let required = null;
     let requiredSource = '';
@@ -435,7 +470,7 @@ function buildEmployees(rows){
 
     const byDate = (a,b)=> (a.date?a.date.getTime():0) - (b.date?b.date.getTime():0);
     list.push({
-      empId, name, store, hireDate,
+      empId, name, store, role, hireDate,
       annualUsed, halfDay, quarterDay,
       required, requiredSource,
       holidayGenerated, holidayUsed, holidayRemain,
@@ -448,30 +483,74 @@ function buildEmployees(rows){
   });
 
   list.sort((a,b)=> (a.store||'').localeCompare(b.store||'') || (a.name||'').localeCompare(b.name||''));
-  return {list, stores:[...stores].sort()};
+  return {list, stores:[...stores].sort(), roles:[...roles].sort()};
 }
 
-let currentData = {list:[], stores:[]};
+let currentData = {list:[], stores:[], roles:[]};
 
 function dateChips(arr){
   if(!arr || !arr.length) return '<div class="date-empty">해당 내역 없음</div>';
   return '<div class="date-chips">' + arr.map(x=>{
     const cls = x.label==='공휴일' ? 'hol' : x.label==='대체' ? 'sub' : 'ann';
-    return `<span class="date-chip"><span class="tag ${cls}">${x.label}</span>${fmtDate(x.date)}${x.extra ? ' · '+x.extra : ''}</span>`;
+    const usedCls = x.used ? ' used' : '';
+    return `<span class="date-chip${usedCls}"><span class="tag ${cls}">${x.label}</span>${fmtDate(x.date)}${x.extra ? ' · '+x.extra : ''}</span>`;
   }).join('') + '</div>';
 }
+
+function renderProgress(filtered, storeF, roleF, q){
+  const panel = document.getElementById('progressPanel');
+  const titleParts = [];
+  if(storeF) titleParts.push(storeF);
+  if(roleF) titleParts.push(roleF);
+  let title = titleParts.length ? titleParts.join(' · ') : '경남지역 전체';
+  if(q) title += ' (검색결과 기준)';
+
+  // 연차: 필수사용일수가 확정된(고정 13일 또는 직접 입력) 인원만 진도율에 포함
+  const annEligible = filtered.filter(e => e.required != null);
+  const annUsedSum = annEligible.reduce((s,e)=> s + e.annualUsed, 0);
+  const annReqSum = annEligible.reduce((s,e)=> s + e.required, 0);
+  const annPct = annReqSum > 0 ? Math.round(annUsedSum / annReqSum * 100) : null;
+  const annSkipped = filtered.length - annEligible.length;
+
+  const holGenSum = filtered.reduce((s,e)=> s + e.holidayGenerated, 0);
+  const holUseSum = filtered.reduce((s,e)=> s + e.holidayUsed, 0);
+  const holPct = holGenSum > 0 ? Math.round(holUseSum / holGenSum * 100) : null;
+
+  const annBlock = annPct == null
+    ? `<div class="pc-empty">필수사용일수가 입력된 인원이 없어 진도율을 계산할 수 없습니다.</div>`
+    : `<div class="pc-bar"><div class="pc-fill ${annPct>100?'over':'ann'}" style="width:${Math.min(annPct,100)}%"></div></div>
+       <div class="pc-nums"><b>${annPct}%</b> · 사용 ${NUM(annUsedSum)}일 / 필수 ${NUM(annReqSum)}일 (${annEligible.length}명 집계${annSkipped ? `, 필수사용일수 미입력 ${annSkipped}명 제외` : ''})</div>`;
+
+  const holBlock = holPct == null
+    ? `<div class="pc-empty">대체휴무 발생 건수가 없어 진도율을 계산할 수 없습니다.</div>`
+    : `<div class="pc-bar"><div class="pc-fill ${holPct>100?'over':'hol'}" style="width:${Math.min(holPct,100)}%"></div></div>
+       <div class="pc-nums"><b>${holPct}%</b> · 사용 ${holUseSum}건 / 발생 ${holGenSum}건 (${filtered.length}명 집계)</div>`;
+
+  panel.innerHTML = `
+    <div class="pp-title">📊 ${title} · 연차·대체휴무 사용 진도율</div>
+    <div class="progress-grid">
+      <div><div class="pc-label">연차 사용</div>${annBlock}</div>
+      <div><div class="pc-label">대체휴무(공휴일 포함) 사용</div>${holBlock}</div>
+    </div>
+  `;
+}
+function NUM(v){ return Math.round(v*100)/100; }
 
 function render(){
   const q = document.getElementById('searchInput').value.trim();
   const storeF = document.getElementById('storeFilter').value;
+  const roleF = document.getElementById('roleFilter').value;
   const listEl = document.getElementById('cardList');
   listEl.innerHTML = '';
 
   const filtered = currentData.list.filter(e=>{
     if(storeF && e.store !== storeF) return false;
+    if(roleF && e.role !== roleF) return false;
     if(q && !(String(e.name).includes(q) || String(e.empId).includes(q))) return false;
     return true;
   });
+
+  renderProgress(filtered, storeF, roleF, q);
 
   if(filtered.length === 0){
     listEl.innerHTML = '<div class="empty">검색 조건에 맞는 인원이 없습니다.</div>';
@@ -485,7 +564,7 @@ function render(){
           <div class="who">
             <span class="dot"></span>
             <span class="name">${e.name}</span>
-            <span class="meta">${e.empId} · ${e.store||'-'}</span>
+            <span class="meta">${e.empId} · ${e.store||'-'}${e.role ? ' · '+e.role : ''}</span>
           </div>
           <div class="nums">
             <span>연차 <b>${e.annualUsed}</b>/${reqLabel}일</span>
@@ -512,7 +591,7 @@ function render(){
               <div class="row"><span>사용</span><span>${e.holidayUsed}</span></div>
               <div class="row"><span>잔여</span><span>${e.holidayRemain}</span></div>
               <details class="date-details" open><summary>사용 날짜 보기 (${e.holUseList.length}건)</summary>${dateChips(e.holUseList)}</details>
-              <details class="date-details"><summary>발생 날짜 보기 (${e.holGenList.length}건)</summary>${dateChips(e.holGenList)}</details>
+              <details class="date-details"><summary>발생 날짜 보기 (${e.holGenList.length}건)</summary>${dateChips(e.holGenList)}<div class="date-empty" style="margin-top:8px">음영 처리된 항목은 이미 사용된 발생 건입니다.</div></details>
             </div>
           </div>
         </div>
@@ -556,6 +635,11 @@ function populateStoreFilter(stores){
   sel.innerHTML = '<option value="">전체 매장</option>' + stores.map(s=>`<option value="${s}">${s}</option>`).join('');
 }
 
+function populateRoleFilter(roles){
+  const sel = document.getElementById('roleFilter');
+  sel.innerHTML = '<option value="">전체 직책</option>' + roles.map(r=>`<option value="${r}">${r}</option>`).join('');
+}
+
 function handleFile(file){
   const reader = new FileReader();
   reader.onload = (e)=>{
@@ -567,6 +651,7 @@ function handleFile(file){
       rawRows = rows;
       currentData = buildEmployees(rawRows);
       populateStoreFilter(currentData.stores);
+      populateRoleFilter(currentData.roles);
 
       const dates = rows.map(r=>r.date).filter(Boolean);
       const minD = dates.length? new Date(Math.min(...dates)):null;
@@ -608,6 +693,7 @@ document.getElementById('reuploadBtn').addEventListener('click', ()=>{
 
 document.getElementById('searchInput').addEventListener('input', render);
 document.getElementById('storeFilter').addEventListener('change', render);
+document.getElementById('roleFilter').addEventListener('change', render);
 
 document.getElementById('applyBatch').addEventListener('click', ()=>{
   const text = document.getElementById('batchInput').value;
