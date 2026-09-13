@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경남지역 연차·대체휴무 현황</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --navy:#1c3d6b; --navy-dark:#12294d; --slate:#5b6b7c; --slate-light:#f3f6f9;
+  --line:#e3e8ee; --red:#d9483a; --orange:#e08a1e; --green:#2f9e58; --bg:#f6f8fb;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:var(--bg);color:var(--navy-dark);}
+.wrap{max-width:900px;margin:0 auto;padding:20px 14px 60px;}
+header.top h1{font-size:1.3rem;margin:0 0 4px;color:var(--navy-dark);}
+.sub{font-size:0.85rem;color:var(--slate);}
+.upload-box{
+  margin:18px 0;padding:24px;border:2px dashed var(--line);border-radius:12px;
+  text-align:center;background:#fff;cursor:pointer;
+}
+.upload-box.drag{border-color:var(--navy);background:var(--slate-light);}
+.upload-box input{display:none;}
+.upload-box .hint{font-size:0.82rem;color:var(--slate);margin-top:6px;}
+.controls{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap;}
+.controls select,.controls input{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:0.9rem;background:#fff;}
+.controls input{flex:1;min-width:160px;}
+.summary-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;font-size:0.82rem;color:var(--slate);}
+.summary-bar b{color:var(--navy-dark);}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.card-head{padding:12px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.card-head .who{display:flex;align-items:center;gap:8px;font-size:0.95rem;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dot.green{background:var(--green);} .dot.orange{background:var(--orange);} .dot.red{background:var(--red);}
+.who .meta{font-size:0.78rem;color:var(--slate);font-weight:400;}
+.card-head .stats{display:flex;gap:14px;font-size:0.8rem;color:var(--slate);}
+.card-head .stats b{color:var(--navy-dark);}
+.card-body{display:none;padding:0 16px 16px;border-top:1px solid var(--line);}
+.card.open .card-body{display:block;}
+.card.open .card-head{border-bottom:1px solid var(--line);}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+@media(max-width:520px){.detail-grid{grid-template-columns:1fr;}}
+.detail-box{background:var(--slate-light);border-radius:8px;padding:10px 12px;}
+.detail-box .t{font-size:0.78rem;color:var(--slate);margin-bottom:6px;font-weight:600;}
+.detail-box .row{display:flex;justify-content:space-between;font-size:0.86rem;padding:2px 0;}
+.detail-box .row span:last-child{font-weight:600;color:var(--navy-dark);}
+.pill-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.pill{font-size:0.76rem;background:#fff;border:1px solid var(--line);border-radius:20px;padding:3px 9px;white-space:nowrap;}
+.pill.dim{opacity:0.45;}
+.toggle-link{font-size:0.8rem;color:var(--navy);cursor:pointer;margin-top:8px;display:inline-block;}
+.manual-input{margin-top:10px;font-size:0.82rem;color:var(--slate);}
+.manual-input input{width:70px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:0.82rem;margin-left:6px;}
+.batch{margin-top:26px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;}
+.batch summary{cursor:pointer;font-weight:600;color:var(--navy);font-size:0.92rem;}
+.batch p{font-size:0.83rem;color:var(--slate);margin:10px 0;}
+.batch textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:8px;padding:10px;font-family:monospace;font-size:0.85rem;resize:vertical;}
+.batch .actions{display:flex;gap:8px;margin-top:10px;}
+.batch button{padding:8px 14px;border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:8px;font-size:0.85rem;cursor:pointer;}
+.batch button.ghost{background:#fff;color:var(--navy);}
+footer.note{margin-top:30px;font-size:0.78rem;color:#8a96a3;text-align:center;}
+.flag{font-size:0.72rem;color:var(--red);font-weight:600;margin-top:6px;}
+#appArea{display:none;}
+.reload-link{font-size:0.82rem;color:var(--navy);cursor:pointer;text-decoration:underline;margin-top:10px;display:inline-block;}
+.guide-box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:6px;}
+.guide-title{font-weight:700;font-size:0.95rem;color:var(--navy-dark);margin-bottom:8px;}
+.guide-body{font-size:0.85rem;color:var(--navy-dark);line-height:1.6;}
+.guide-body ul{margin:8px 0 0;padding-left:18px;}
+.guide-body li{margin-bottom:6px;}
+.guide-note{font-size:0.78rem;color:var(--slate);margin-top:8px;}
+.stats-panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0;}
+.stats-panel h3{font-size:0.95rem;margin:0 0 10px;color:var(--navy-dark);}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:0.8rem;}
+.bar-row .label{width:150px;flex-shrink:0;color:var(--slate);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bar-row .track{flex:1;background:var(--slate-light);border-radius:6px;height:14px;position:relative;overflow:hidden;}
+.bar-row .fill{height:100%;border-radius:6px;background:var(--navy);}
+.bar-row .fill.warn{background:var(--orange);}
+.bar-row .val{width:60px;text-align:right;font-weight:600;color:var(--navy-dark);flex-shrink:0;}
+.stats-toggle{font-size:0.82rem;color:var(--navy);cursor:pointer;text-decoration:underline;margin:6px 0 0;display:inline-block;}
+.pos-chip{cursor:pointer;text-decoration:underline dotted;}
+.store-chip{cursor:pointer;text-decoration:underline dotted;}
+.stats-tabs{display:flex;gap:6px;margin-bottom:14px;}
+.stats-tab{padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:20px;font-size:0.82rem;cursor:pointer;color:var(--slate);}
+.stats-tab.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.stats-entity{border-bottom:1px solid var(--line);padding:10px 0;}
+.stats-entity:last-child{border-bottom:none;}
+.stats-entity .ent-name{font-size:0.86rem;font-weight:600;color:var(--navy-dark);margin-bottom:6px;}
+.stats-metric-row{display:flex;align-items:center;gap:8px;font-size:0.78rem;margin-bottom:4px;}
+.stats-metric-row .m-label{width:78px;flex-shrink:0;color:var(--slate);}
+.stats-metric-row .m-track{flex:1;background:var(--slate-light);border-radius:6px;height:12px;position:relative;overflow:hidden;}
+.stats-metric-row .m-fill{height:100%;border-radius:6px;}
+.stats-metric-row .m-fill.annual{background:var(--navy);}
+.stats-metric-row .m-fill.holiday{background:var(--green);}
+.stats-metric-row .m-val{width:110px;text-align:right;font-size:0.76rem;color:var(--navy-dark);flex-shrink:0;}
+.stats-scroll{max-height:480px;overflow-y:auto;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>📋 경남지역 연차·대체휴무 현황</h1>
+    <div class="sub" id="periodLabel">엑셀 파일(「일별 근태 현황」)을 올리면 자동으로 계산됩니다</div>
+  </header>
+
+  <div class="guide-box" id="guideBox">
+    <div class="guide-title">📌 이 화면 사용법</div>
+    <div class="guide-body">
+      <b>① 파일 받는 방법</b><br>
+      ARS &gt; 매장 &gt; 일별근태현황 &gt; 다운로드 → 받은 엑셀 파일을 아래 업로드 칸에 그대로 올려주세요.
+      <br><br>
+      <b>② 이 화면이 계산하는 방식</b>
+      <ul>
+        <li><b>연차</b>: 연차 1일 + 반차 0.5일 + 반반차 0.25일을 더해서 "사용일수"로 보여줍니다. 2024년 12월 31일 이전 입사자는 필수사용일수가 12일로 고정, 그 이후 입사자는 회사 자료에 없어서 직접 숫자를 입력해야 합니다.</li>
+        <li><b>대체휴무(공휴일 포함)</b>: 법정공휴일(신정, 설날, 삼일절, 어린이날, 부처님오신날, 지방선거일, 현충일, 제헌절, 광복절 등, 노동절은 제외)에 실제로 근무했으면 "발생", 「휴일의 대체」로 쉬었으면 "사용"으로 계산합니다. <b>남은 개수(잔여)</b>는 "발생은 됐는데 아직 안 쓴 건수"를 그대로 센 것입니다.</li>
+        <li><b>색깔</b>: 🔴 빨강 = 데이터에 확인이 필요한 부분이 있음(비고란 확인 필요) · 🟠 주황 = 연차를 아직 다 안 썼거나 필수일수가 입력 안 됨 · 🟢 초록 = 정상</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="upload-box" id="uploadBox">
+    <div>📂 여기를 클릭하거나 엑셀 파일을 끌어다 놓으세요</div>
+    <div class="hint">파일은 서버로 전송되지 않고 이 브라우저 안에서만 계산됩니다</div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+
+  <div id="appArea">
+    <span class="reload-link" id="reloadLink">↺ 다른 파일 업로드</span>
+    <div class="controls">
+      <select id="storeFilter"><option value="">전체 매장</option></select>
+      <select id="posFilter"><option value="">전체 직책</option></select>
+      <input id="searchBox" type="text" placeholder="이름 또는 사번 검색">
+    </div>
+    <span class="stats-toggle" id="statsToggle">📊 연차·대체휴무 통계 보기</span>
+    <div class="stats-panel" id="statsPanel" style="display:none;">
+      <div class="stats-tabs">
+        <button class="stats-tab active" data-level="region">전체(지역)</button>
+        <button class="stats-tab" data-level="store">매장별</button>
+        <button class="stats-tab" data-level="position">직책별</button>
+        <button class="stats-tab" data-level="person">인원별</button>
+      </div>
+      <div id="statsContent"></div>
+    </div>
+    <div class="summary-bar" id="summaryBar"></div>
+    <div id="cardList"></div>
+
+    <details class="batch">
+      <summary>🛠 신규 입사자(2025년 이후) 필수 연차사용일수 일괄 입력</summary>
+      <p>사번,일수 형식으로 한 줄에 한 명씩 입력하세요. 예) 2510083,5<br>
+      원자료에 없는 값이라 자동 계산이 불가능해 직접 입력이 필요합니다. 입력값은 이 브라우저에만 저장되며, 새 파일로 갱신할 때마다 다시 넣어야 합니다.</p>
+      <textarea id="bulkInput" placeholder="2510083,5&#10;2511021,4"></textarea>
+      <div class="actions">
+        <button id="bulkApply">적용</button>
+        <button id="bulkExport" class="ghost">현재 저장값 불러오기</button>
+        <button id="bulkClear" class="ghost">전체 초기화</button>
+      </div>
+      <div id="bulkMsg" style="font-size:0.8rem;color:var(--slate);margin-top:8px;"></div>
+    </details>
+
+    <footer class="note">
+      산출 기준 · 연차 = 연차 1일 + 반차 0.5일 + 반반차 0.25일 (이월 건 제외) · 필수사용일수 = 2024-12-31 이전 입사자 12일 고정, 이후 입사자는 직접 입력 ·
+      대체휴무 발생 = 재직기간 내 법정공휴일 중 실제 근무한 날(공휴일휴무는 발생과 동시 사용) · 잔여 = 발생 날짜 중 아직 사용되지 않은 건수 ·
+      데이터 중복/누락으로 확인이 필요한 건은 빨간색으로 표시됩니다.
+    </footer>
+  </div>
+</div>
+
+<script>
+const REQUIRED_FIXED = 12;
+const CUTOFF = '2025-01-01';
+const EXCLUDE_IDS = new Set(['1408105','1403177']); // 최우석(지역장), 문용일(재직기간 데이터 부족)
+
+// 2026년 법정공휴일 (노동절 제외 — 사용자 지정)
+const HOLIDAY_NAMES = {
+  '2026-01-01':'신정','2026-02-16':'설날연휴','2026-02-17':'설날','2026-02-18':'설날연휴',
+  '2026-03-01':'삼일절','2026-03-02':'삼일절 대체',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날','2026-05-25':'부처님오신날 대체',
+  '2026-06-03':'지방선거일','2026-06-06':'현충일','2026-07-17':'제헌절',
+  '2026-08-15':'광복절','2026-08-17':'광복절 대체'
+};
+const HOLIDAYS = Object.keys(HOLIDAY_NAMES).sort();
+
+let grant = {};
+try{ grant = JSON.parse(localStorage.getItem('grant_days')||'{}'); }catch(e){ grant = {}; }
+function saveGrant(){ localStorage.setItem('grant_days', JSON.stringify(grant)); }
+
+let DATA = [];
+
+// ---------- excel parsing ----------
+function excelDateToStr(v){
+  if(v == null || v === '') return null;
+  if(v instanceof Date) return toYMD(v);
+  if(typeof v === 'number'){
+    const d = XLSX.SSF.parse_date_code(v);
+    if(!d) return null;
+    return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  const s = String(v).trim();
+  const m = s.match(/(20\d{2})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  if(m) return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+  return null;
+}
+function toYMD(d){
+  // use UTC getters: XLSX builds date cells via UTC epoch math, so reading them back
+  // with local getters shifts the day depending on the browser's system timezone.
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+const DATE_RE = /(20\d{2})[-.](\d{1,2})[-.](\d{1,2})/;
+function parseFirstDate(text){
+  if(text === null || text === undefined || text === '') return null;
+  const m = String(text).match(DATE_RE);
+  if(!m) return null;
+  const y=+m[1], mo=+m[2], d=+m[3];
+  return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function hasCarry(reason, note, curYear){
+  const text = `${reason||''} ${note||''}`;
+  if(text.includes('이월')) return true;
+  const prev = String(curYear-1);
+  if(text.includes(prev) || text.includes(prev.slice(2)+'년')) return true;
+  return false;
+}
+
+function fixSheetRange(sheet){
+  let maxR=0, maxC=0;
+  Object.keys(sheet).forEach(k=>{
+    if(k[0]==='!') return;
+    const addr = XLSX.utils.decode_cell(k);
+    if(addr.r>maxR) maxR=addr.r;
+    if(addr.c>maxC) maxC=addr.c;
+  });
+  sheet['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:maxR,c:maxC}});
+}
+
+function parseWorkbook(wb){
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  fixSheetRange(sheet); // source file's stored range is often truncated; recompute from actual cells
+  const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:null});
+  // header is row index 14 (0-based) => actual header row 15
+  const header = rows[14].map(h => (h||'').toString().trim());
+  const col = name => header.indexOf(name);
+  const idx = {
+    NO: col('NO'), 일자: col('일자'), 사번: col('사번'), 성명: col('성명'), 점: col('점'),
+    직책: col('직책'), 입사일자: col('입사일자'), 근무상태: col('근무상태'),
+    마감수정사유: col('마감수정사유'), 비고: col('비고'), 재직구분: col('재직 구분')
+  };
+  const out = [];
+  for(let i=15;i<rows.length;i++){
+    const r = rows[i];
+    if(!r || r[idx.NO]===null || r[idx.NO]===undefined || r[idx.NO]==='') continue;
+    const 사번raw = r[idx.사번];
+    if(사번raw===null||사번raw===undefined) continue;
+    const 사번 = String(Math.trunc(Number(사번raw)));
+    if(EXCLUDE_IDS.has(사번)) continue;
+    if(r[idx.재직구분] !== '재직') continue;
+    const 일자 = excelDateToStr(r[idx.일자]);
+    if(!일자) continue;
+    out.push({
+      사번, 성명: r[idx.성명], 점: r[idx.점], 직책: r[idx.직책],
+      입사일자: excelDateToStr(r[idx.입사일자]),
+      일자, 근무상태: r[idx.근무상태], 마감수정사유: r[idx.마감수정사유], 비고: r[idx.비고]
+    });
+  }
+  return out;
+}
+
+function buildEmployees(rows){
+  const byEmp = {};
+  rows.forEach(r=>{ (byEmp[r.사번] = byEmp[r.사번]||[]).push(r); });
+
+  const employees = [];
+  Object.keys(byEmp).forEach(empid=>{
+    const g = byEmp[empid].slice().sort((a,b)=> a.일자 < b.일자 ? -1 : a.일자 > b.일자 ? 1 : 0);
+    const last = g[g.length-1];
+    const hireCandidates = g.map(r=>r.입사일자).filter(Boolean);
+    const hireDate = hireCandidates.length ? hireCandidates[0] : null;
+    const firstSeen = g[0].일자, lastSeen = g[g.length-1].일자;
+
+    const rec = {
+      id: empid, name: last.성명, store: last.점, position: last.직책, hireDate,
+      annualUsed:0, halfDay:0, quarterDay:0, annualDates:[],
+      genList:[], usageList:[]
+    };
+
+    const byDate = {};
+    g.forEach(r=>{ byDate[r.일자] = r; });
+
+    const useEvents = [];
+    g.forEach(r=>{
+      const status = r.근무상태, d = r.일자, curYear = +d.slice(0,4);
+      const reason = r.마감수정사유, note = r.비고;
+      const carry = hasCarry(reason, note, curYear);
+
+      if(status==='연차' && !carry){ rec.annualUsed += 1; rec.annualDates.push(d); }
+      else if(status==='반차' && !carry){ rec.annualUsed += 0.5; rec.halfDay++; rec.annualDates.push(d+' (반차)'); }
+      else if(status==='반반차' && !carry){ rec.annualUsed += 0.25; rec.quarterDay++; rec.annualDates.push(d+' (반반차)'); }
+
+      if(status==='휴일의 대체' && !carry){
+        const back = parseFirstDate(reason) || parseFirstDate(note);
+        useEvents.push({date:d, type:'대체', backRef: back});
+      } else if(status==='공휴일휴무'){
+        useEvents.push({date:d, type:'공휴일', backRef:d});
+      }
+    });
+
+    const claimed = {};
+    useEvents.forEach(ue=>{
+      if(ue.type==='대체' && ue.backRef) (claimed[ue.backRef] = claimed[ue.backRef]||[]).push(ue.date);
+    });
+
+    HOLIDAYS.forEach(hdate=>{
+      if(hdate < firstSeen || hdate > lastSeen) return;
+      const row = byDate[hdate];
+      if(!row){ rec.genList.push({date:hdate,name:HOLIDAY_NAMES[hdate],status:'no_record',matched:null}); return; }
+      const st = row.근무상태;
+      if(st==='공휴일휴무'){
+        rec.genList.push({date:hdate,name:HOLIDAY_NAMES[hdate],status:'used',matched:hdate,type:'공휴일'});
+      } else if(st==='근무' || st==='타매장 지원근무'){
+        const claimList = claimed[hdate];
+        if(claimList){
+          rec.genList.push({date:hdate,name:HOLIDAY_NAMES[hdate],status:'used',matched:claimList[0],type:'대체',
+            conflict: claimList.length>1, conflictDates: claimList.length>1?claimList:null});
+        } else {
+          rec.genList.push({date:hdate,name:HOLIDAY_NAMES[hdate],status:'pending',matched:null,type:'대체'});
+        }
+      } else {
+        rec.genList.push({date:hdate,name:HOLIDAY_NAMES[hdate],status:'not_generated',matched:null,workStatus:st});
+      }
+    });
+
+    rec.usageList = useEvents.map(u=>({date:u.date, matched:u.backRef, type:u.type}));
+    employees.push(rec);
+  });
+  return employees;
+}
+
+// ---------- rendering (identical to previous static version) ----------
+function pendingCount(emp){ return emp.genList.filter(g=>g.status==='pending').length; }
+function hasDataIssue(emp){
+  if(emp.genList.some(g=>g.conflict)) return true;
+  return emp.usageList.some(u=>{
+    if(!u.matched) return true;
+    return !emp.genList.some(g=>g.date===u.matched && g.matched===u.date);
+  });
+}
+function computeRequired(emp){
+  if(emp.hireDate && emp.hireDate < CUTOFF) return REQUIRED_FIXED;
+  if(grant[emp.id] !== undefined) return grant[emp.id];
+  return null;
+}
+function statusOf(emp, required){
+  if(hasDataIssue(emp)) return 'red';
+  if(required !== null && emp.annualUsed > required) return 'red';
+  if(required !== null && emp.annualUsed < required) return 'orange';
+  if(required === null) return 'orange';
+  return 'green';
+}
+function fillStoreFilter(){
+  const stores = Array.from(new Set(DATA.map(d=>d.store))).sort();
+  const sel = document.getElementById('storeFilter');
+  sel.innerHTML = '<option value="">전체 매장</option>';
+  stores.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+
+  const positions = Array.from(new Set(DATA.map(d=>d.position))).sort();
+  const psel = document.getElementById('posFilter');
+  psel.innerHTML = '<option value="">전체 직책</option>';
+  positions.forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; psel.appendChild(o); });
+}
+
+function metricsFor(list){
+  let annualUsed=0, annualReq=0, annualReqN=0, genCount=0, useCount=0;
+  list.forEach(e=>{
+    annualUsed += e.annualUsed;
+    const req = computeRequired(e);
+    if(req!==null) { annualReq += req; annualReqN++; }
+    genCount += e.genList.filter(g=>g.status==='used'||g.status==='pending').length;
+    useCount += e.genList.filter(g=>g.status==='used').length;
+  });
+  return {count:list.length, annualUsed, annualReq, annualReqN, genCount, useCount};
+}
+function metricRowsHtml(m){
+  const annualPct = m.annualReq>0 ? Math.min(100, Math.round(m.annualUsed/m.annualReq*100)) : 0;
+  const holPct = m.genCount>0 ? Math.min(100, Math.round(m.useCount/m.genCount*100)) : 0;
+  return `
+    <div class="stats-metric-row">
+      <span class="m-label">연차</span>
+      <div class="m-track"><div class="m-fill annual" style="width:${annualPct}%"></div></div>
+      <span class="m-val">사용 ${m.annualUsed} / 필수 ${m.annualReq||'—'}</span>
+    </div>
+    <div class="stats-metric-row">
+      <span class="m-label">법정공휴일</span>
+      <div class="m-track"><div class="m-fill holiday" style="width:${holPct}%"></div></div>
+      <span class="m-val">사용 ${m.useCount} / 발생 ${m.genCount}</span>
+    </div>`;
+}
+
+let statsLevel = 'region';
+let statsHighlight = null;
+function renderStats(){
+  const content = document.getElementById('statsContent');
+  if(statsLevel === 'region'){
+    const m = metricsFor(DATA);
+    content.innerHTML = `<div class="stats-entity"><div class="ent-name">경남지역 전체 (${m.count}명)</div>${metricRowsHtml(m)}</div>`;
+  } else if(statsLevel === 'store'){
+    const stores = Array.from(new Set(DATA.map(d=>d.store))).sort();
+    let html = '<div class="stats-scroll">';
+    stores.forEach(s=>{
+      const list = DATA.filter(e=>e.store===s);
+      const m = metricsFor(list);
+      const hl = s===statsHighlight ? 'background:var(--slate-light);border-radius:8px;padding:8px 10px;' : '';
+      html += `<div class="stats-entity" style="${hl}"><div class="ent-name">${s} (${m.count}명)</div>${metricRowsHtml(m)}</div>`;
+    });
+    content.innerHTML = html + '</div>';
+  } else if(statsLevel === 'position'){
+    const positions = Array.from(new Set(DATA.map(d=>d.position))).sort();
+    let html = '<div class="stats-scroll">';
+    positions.forEach(p=>{
+      const list = DATA.filter(e=>e.position===p);
+      const m = metricsFor(list);
+      const hl = p===statsHighlight ? 'background:var(--slate-light);border-radius:8px;padding:8px 10px;' : '';
+      html += `<div class="stats-entity" style="${hl}"><div class="ent-name">${p} (${m.count}명)</div>${metricRowsHtml(m)}</div>`;
+    });
+    content.innerHTML = html + '</div>';
+  } else {
+    const sorted = DATA.slice().sort((a,b)=> (a.store||'').localeCompare(b.store) || a.name.localeCompare(b.name));
+    let html = '<div class="stats-scroll">';
+    sorted.forEach(e=>{
+      const m = metricsFor([e]);
+      html += `<div class="stats-entity"><div class="ent-name">${e.name} <span style="font-weight:400;color:var(--slate);">· ${e.id} · ${e.store}</span></div>${metricRowsHtml(m)}</div>`;
+    });
+    content.innerHTML = html + '</div>';
+  }
+}
+document.querySelectorAll('.stats-tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.stats-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    statsLevel = btn.getAttribute('data-level');
+    renderStats();
+  });
+});
+document.getElementById('statsToggle').onclick = ()=>{
+  const panel = document.getElementById('statsPanel');
+  const showing = panel.style.display !== 'none';
+  if(showing){ panel.style.display='none'; document.getElementById('statsToggle').textContent='📊 연차·대체휴무 통계 보기'; }
+  else{ renderStats(); panel.style.display='block'; document.getElementById('statsToggle').textContent='📊 통계 닫기'; }
+};
+
+function render(){
+  const q = document.getElementById('searchBox').value.trim();
+  const storeQ = document.getElementById('storeFilter').value;
+  const posQ = document.getElementById('posFilter').value;
+  const list = document.getElementById('cardList');
+  list.innerHTML = '';
+
+  let filtered = DATA.filter(e=>{
+    if(storeQ && e.store !== storeQ) return false;
+    if(posQ && e.position !== posQ) return false;
+    if(q && !(e.name.includes(q) || e.id.includes(q))) return false;
+    return true;
+  });
+
+  let redCount=0, orangeCount=0;
+  filtered.forEach(e=>{
+    const required = computeRequired(e);
+    const st = statusOf(e, required);
+    if(st==='red') redCount++; else if(st==='orange') orangeCount++;
+  });
+  document.getElementById('summaryBar').innerHTML =
+    `총 <b>${filtered.length}</b>명 · 🔴 확인필요 <b>${redCount}</b>명 · 🟠 연차 미사용/미입력 <b>${orangeCount}</b>명`;
+
+  filtered.sort((a,b)=> (a.store||'').localeCompare(b.store) || a.name.localeCompare(b.name));
+
+  filtered.forEach(e=>{
+    const required = computeRequired(e);
+    const st = statusOf(e, required);
+    const holidayRemain = pendingCount(e);
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    head.innerHTML = `
+      <div class="who">
+        <span class="dot ${st}"></span>
+        <b>${e.name}</b>
+        <span class="meta">${e.id} · <span class="store-chip" data-store="${e.store}">${e.store}</span> · <span class="pos-chip" data-pos="${e.position}">${e.position}</span></span>
+      </div>
+      <div class="stats">
+        <span>연차 <b>${e.annualUsed}${required!==null? '/'+required : ' (필수:미입력)'}</b></span>
+        <span>대체휴무 잔여(미사용) <b>${holidayRemain}</b></span>
+      </div>`;
+    head.onclick = ()=> card.classList.toggle('open');
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const annualDatesHtml = e.annualDates.length
+      ? `<div class="toggle-link" data-t="annual">+ 연차 사용일 보기 (${e.annualDates.length}건)</div>
+         <div class="pill-list" style="display:none">
+           ${e.annualDates.map(d=>`<span class="pill">${d}</span>`).join('')}
+         </div>`
+      : '';
+
+    const usageHtml = e.usageList.length
+      ? `<div class="toggle-link" data-t="use">- 사용 날짜 보기 (${e.usageList.length}건)</div>
+         <div class="pill-list">
+           ${e.usageList.map(u=>{
+             if(!u.matched) return `<span class="pill" style="border-color:var(--red);color:var(--red);">${u.type} ${u.date} · 발생일 없음(확인필요)</span>`;
+             const genExists = e.genList.some(g=>g.date===u.matched && g.matched===u.date);
+             if(!genExists) return `<span class="pill" style="border-color:var(--red);color:var(--red);">${u.type} ${u.date} · 발생일 ${u.matched}(원본 확인필요)</span>`;
+             return `<span class="pill">${u.type} ${u.date} · 발생일 ${u.matched}</span>`;
+           }).join('')}
+         </div>`
+      : '<div style="font-size:0.8rem;color:var(--slate);margin-top:6px;">사용 내역 없음</div>';
+
+    const genHtml = e.genList.length
+      ? `<div class="toggle-link" data-t="gen">- 발생 날짜 보기 (법정공휴일 ${e.genList.length}일)</div>
+         <div class="pill-list">
+           ${e.genList.map(g=>{
+             if(g.status==='no_record') return `<span class="pill" style="opacity:0.5;">${g.name} ${g.date} · 재직기간 기록없음</span>`;
+             if(g.status==='not_generated') return `<span class="pill" style="opacity:0.6;">${g.name} ${g.date} · ${g.workStatus||'미근무'}(발생 아님)</span>`;
+             if(g.conflict) return `<span class="pill" style="border-color:var(--red);color:var(--red);">${g.name} ${g.date} · 사용 중복주장(${g.conflictDates.join(', ')})</span>`;
+             if(g.status==='pending') return `<span class="pill" style="border-color:var(--orange);color:var(--orange);">${g.name} ${g.date} · 근무(발생) · 미사용</span>`;
+             const dim = g.type==='공휴일';
+             const workTag = g.type==='대체' ? '근무(발생) · ' : '';
+             return `<span class="pill ${dim?'dim':''}">${g.name} ${g.date} · ${workTag}사용일 ${g.matched}</span>`;
+           }).join('')}
+         </div>`
+      : '<div style="font-size:0.8rem;color:var(--slate);margin-top:6px;">재직기간 내 법정공휴일 없음</div>';
+
+    const dimNote = e.genList.length ? '<div style="font-size:0.74rem;color:#8a96a3;margin-top:4px;">회색(옅음) = 공휴일에 쉼(발생 아님) 또는 재직기간 밖 · 주황 = 아직 사용되지 않은 발생 건 · 빨강 = 데이터 중복으로 확인이 필요한 건 · 그 외 = 이미 사용된 발생 건</div>' : '';
+
+    const manualHtml = required===null
+      ? `<div class="manual-input">필수사용일수 직접 입력: <input type="number" min="0" data-empid="${e.id}" class="manualDays" value="${grant[e.id]!==undefined?grant[e.id]:''}"></div>`
+      : '';
+
+    body.innerHTML = `
+      <div class="stats-entity" style="border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:4px;">
+        <div class="ent-name">📊 ${e.name}님 연차·대체휴무 그래프</div>
+        ${metricRowsHtml(metricsFor([e]))}
+      </div>
+      <div class="detail-grid">
+        <div class="detail-box">
+          <div class="t">연차</div>
+          <div class="row"><span>사용일수</span><span>${e.annualUsed}일</span></div>
+          <div class="row"><span>필수사용일수</span><span>${required!==null? required+'일' : '미입력'}</span></div>
+          <div class="row"><span>반차/반반차 횟수</span><span>${e.halfDay} / ${e.quarterDay}</span></div>
+          ${manualHtml}
+          ${annualDatesHtml}
+        </div>
+        <div class="detail-box">
+          <div class="t">대체휴무(공휴일 포함)</div>
+          <div class="row"><span>잔여(미사용 발생건)</span><span>${holidayRemain}</span></div>
+          ${hasDataIssue(e) ? '<div class="flag">⚠ 발생·사용 매칭에 확인이 필요한 건이 있습니다 — 아래 목록에서 빨간 항목 확인</div>' : ''}
+          ${usageHtml}
+          ${genHtml}
+          ${dimNote}
+        </div>
+      </div>`;
+
+    card.appendChild(head);
+    card.appendChild(body);
+    list.appendChild(card);
+  });
+
+  function openStatsFor(level, value, filterElId){
+    document.getElementById(filterElId).value = value;
+    statsHighlight = value;
+    statsLevel = level;
+    document.querySelectorAll('.stats-tab').forEach(b=>b.classList.remove('active'));
+    const tab = document.querySelector(`.stats-tab[data-level="${level}"]`);
+    if(tab) tab.classList.add('active');
+    document.getElementById('statsPanel').style.display = 'block';
+    document.getElementById('statsToggle').textContent = '📊 통계 닫기';
+    renderStats();
+    render();
+  }
+  document.querySelectorAll('.pos-chip').forEach(el=>{
+    el.onclick = (ev)=>{
+      ev.stopPropagation();
+      openStatsFor('position', el.getAttribute('data-pos'), 'posFilter');
+    };
+  });
+  document.querySelectorAll('.store-chip').forEach(el=>{
+    el.onclick = (ev)=>{
+      ev.stopPropagation();
+      openStatsFor('store', el.getAttribute('data-store'), 'storeFilter');
+    };
+  });
+  document.querySelectorAll('.toggle-link').forEach(el=>{
+    el.onclick = (ev)=>{
+      ev.stopPropagation();
+      const target = el.nextElementSibling;
+      if(target) target.style.display = target.style.display==='none' ? 'flex' : 'none';
+    };
+  });
+  document.querySelectorAll('.manualDays').forEach(inp=>{
+    inp.onclick = (ev)=> ev.stopPropagation();
+    inp.onchange = ()=>{
+      const id = inp.getAttribute('data-empid');
+      const v = parseFloat(inp.value);
+      if(!isNaN(v)){ grant[id]=v; saveGrant(); render(); }
+    };
+  });
+}
+
+document.getElementById('searchBox').addEventListener('input', render);
+document.getElementById('storeFilter').addEventListener('change', render);
+document.getElementById('posFilter').addEventListener('change', render);
+
+document.getElementById('bulkApply').onclick = ()=>{
+  const lines = document.getElementById('bulkInput').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  let ok=0, bad=[];
+  lines.forEach(l=>{
+    const m = l.split(',');
+    if(m.length===2 && m[0].trim() && !isNaN(parseFloat(m[1]))){ grant[m[0].trim()]=parseFloat(m[1]); ok++; }
+    else bad.push(l);
+  });
+  saveGrant(); render();
+  document.getElementById('bulkMsg').textContent = `${ok}건 적용됨.` + (bad.length? ` 형식이 맞지 않는 ${bad.length}줄은 건너뛰었습니다.`:'');
+};
+document.getElementById('bulkExport').onclick = ()=>{
+  document.getElementById('bulkInput').value = Object.entries(grant).map(([k,v])=>k+','+v).join('\n');
+  document.getElementById('bulkMsg').textContent = '현재 저장된 값을 위 칸에 불러왔습니다.';
+};
+document.getElementById('bulkClear').onclick = ()=>{ grant={}; saveGrant(); render(); document.getElementById('bulkMsg').textContent='입력값을 모두 지웠습니다.'; };
+
+// ---------- file upload wiring ----------
+const uploadBox = document.getElementById('uploadBox');
+const fileInput = document.getElementById('fileInput');
+uploadBox.addEventListener('click', ()=> fileInput.click());
+uploadBox.addEventListener('dragover', e=>{ e.preventDefault(); uploadBox.classList.add('drag'); });
+uploadBox.addEventListener('dragleave', ()=> uploadBox.classList.remove('drag'));
+uploadBox.addEventListener('drop', e=>{
+  e.preventDefault(); uploadBox.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      // NOTE: cellDates is intentionally OFF. With it on, SheetJS converts date
+      // cells to JS Date objects using a conversion that can disagree with the
+      // browser's local timezone (breaks specifically in Asia/Seoul, UTC+9),
+      // silently shifting many dates by one day. Reading dates as raw serial
+      // numbers and parsing them with pure calendar arithmetic (excelDateToStr's
+      // number branch) is timezone-proof.
+      const wb = XLSX.read(data, {type:'array'});
+      const rows = parseWorkbook(wb);
+      DATA = buildEmployees(rows);
+      const dates = rows.map(r=>r.일자).sort();
+      document.getElementById('periodLabel').textContent =
+        `조회기간: ${dates[0]} ~ ${dates[dates.length-1]} · 대상 ${DATA.length}명 (지역장·전입기록부족자 제외)`;
+      document.getElementById('uploadBox').style.display = 'none';
+      document.getElementById('guideBox').style.display = 'none';
+      document.getElementById('appArea').style.display = 'block';
+      fillStoreFilter();
+      render();
+    }catch(err){
+      alert('파일을 읽는 중 문제가 발생했습니다: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('reloadLink').onclick = ()=>{
+  document.getElementById('appArea').style.display = 'none';
+  document.getElementById('uploadBox').style.display = 'block';
+  document.getElementById('guideBox').style.display = 'block';
+  document.getElementById('fileInput').value = '';
+  DATA = [];
+};
+</script>
+</body>
+</html>
